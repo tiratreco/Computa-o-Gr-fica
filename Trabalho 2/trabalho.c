@@ -20,7 +20,7 @@ void display(void);
 void keyboard(unsigned char key, int x, int y);
 void mouse(int button, int state, int x, int y);
 
-void drawPontos(figura* f);
+void drawPontos();
 
 
 int main(int argc, char** argv){
@@ -103,14 +103,14 @@ void display(void){
     glLoadIdentity();
     
     menu();
-    drawPontos(figuras);
+    drawPontos();
     glutSwapBuffers();
 
 }
 
-void drawPontos(figura* f){
+void drawPontos(){
     ponto* pnt = NULL;
-    figura* fig = f;
+    figura* fig = figuras;
     
     while(fig != NULL){//percorre figuras
         glColor3f (fig->r, fig->g, fig->b);

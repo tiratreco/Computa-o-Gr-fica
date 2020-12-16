@@ -19,6 +19,8 @@
 #define ESPELHAMENTO 11
 #define SELECIONAR 12
 #define DELETAR 13
+#define PREENCHER 14
+
 
 ///////////////// ESTRUTURAS
 
@@ -197,6 +199,31 @@ ponto* pontoMedio (int id){
     p->x=x/f->numPontos;
     p->y=y/f->numPontos;
     return p;
+}
+
+ponto* pontoMinimo (figura* f){
+    ponto* atual = f->pontos;
+    ponto* menor = new ponto;
+    menor->x = 999;
+    menor->y = 999;
+    while (atual!=NULL){
+        if (atual->x < menor->x) menor->x = atual->x;
+        if (atual->y < menor->y) menor->y = atual->y;
+        atual=atual->prox;
+    };
+    return menor;
+}
+ponto* pontoMaximo (figura* f){
+    ponto* atual = f->pontos;
+    ponto* maior = new ponto;
+    maior->x = 0;
+    maior->y = 0;
+    while (atual!=NULL){
+        if (atual->x > maior->x) maior->x = atual->x;
+        if (atual->y > maior->y) maior->y = atual->y;
+        atual=atual->prox;
+    };
+    return maior;
 }
 
 void bresenham (figura* f, int x0,int y0,int x1,int y1){
@@ -416,28 +443,91 @@ void escala(int id, float fator){
 }
 
 
+void preencherFigura(figura *f){
+    //ponto* maxPonto = pontoMaximo(f);
+    //ponto* minPonto = pontoMinimo(f);
+    ponto* aux = f->pontos;
+    int contx, conty, cont;
+    bool anterior;
+    bool matriz[512][512];
+    //usando matriz auxiliar
+    for (contx = 0; contx < 512; contx++){
+        for (conty = 0; conty < 512; conty++){
+            matriz[contx][conty]=false;
+        }
+    }
+    while(aux != NULL){
+        matriz[aux->x][aux->y]=true;
+        aux=aux->prox;
+    }
+    for (contx = 0; contx < 512; contx++){
+        bool anterior = false, interno = false;
+        cont = 0;
+        for (conty = 0; conty < 512; conty++){
+            if(matriz[contx][conty] && !anterior) {
+                while(cont!=0){
+                    printf("%d %d\n", contx, conty);
+                    pushPonto(f, contx, conty-cont);
+                    cont--; 
+                }
+            }
+            if(anterior && !matriz[contx][conty]) interno = !interno;
+            if(interno) cont++;
+            anterior=matriz[contx][conty];
+        }
+    }
+}
+
+/*FLOOD FILL
+//funcao recursiva funciona mas eh muito lenta,
+//principalmente para figuras grandes.
+void preencherFigura(figura *f, int x, int y){
+    if(existePonto(f, x ,y)) return;
+    pushPonto(f, x , y);
+    preencherFigura(f, (x-1), y);
+    preencherFigura(f, (x+1), y);
+    preencherFigura(f, x, (y-1));
+    preencherFigura(f, x, (y+1));
+}
+*/
+
 ///////////////// FUNÇÕES DA OPERAÇÃO DO PROGRAMA
 
 void setEstado(int e){
     estado = e;
     conta_pontos = 0;
     figura* f= NULL;
+    ponto* p = NULL;
     if (figura_atual!=-1){
         popFigura(figura_atual);
         figura_atual=-1;
     }
-    if(e == DELETAR && figura_selecionada!=-1){
-        popFigura(figura_selecionada);
-        figura_selecionada=-1;
-        f = figuras;
-        while (f!=NULL){
-            if (f->tipo!=MENU){
-                figura_selecionada=f->id;
-                glutPostRedisplay();
-                return;
+
+    if(figura_selecionada!=-1){
+        switch (e){
+        case DELETAR:
+            popFigura(figura_selecionada);
+            figura_selecionada=-1;
+            f = figuras;
+            while (f!=NULL){
+                if (f->tipo!=MENU){
+                    figura_selecionada=f->id;
+                    break;
+                }   
+                f=f->prox;
             }
-            f=f->prox;
+            break;
+        
+        case PREENCHER:
+            printf("num de pixel : %d\n", procurarId(figura_selecionada)->numPontos);
+            preencherFigura(procurarId(figura_selecionada));
+            printf("num de pixel : %d\n\n", procurarId(figura_selecionada)->numPontos);
+            break;
+
+        default:
+            break;
         }
+        
     }
     glutPostRedisplay();
 }
@@ -555,6 +645,10 @@ void desenho(int x,int y, int tipo_clique){
         break;
 
     case DELETAR:
+        //executada no setEstado
+        break;
+
+    case PREENCHER:
         //executada no setEstado
         break;
 
