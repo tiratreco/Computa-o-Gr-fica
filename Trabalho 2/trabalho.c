@@ -1,5 +1,6 @@
 
 //Gustavo André de Sousa Paulino
+//Comando utilizado para compliar no Linux
 //g++ trabalho.c -o trabalho -lglut -lGLU -lGL
 
 #include <GL/gl.h>

@@ -1,5 +1,6 @@
 
 //Gustavo André de Sousa Paulino
+//Comando utilizado para compliar no Linux
 //g++ trabalho.c -o trabalho -lglut -lGLU -lGL
 #include <math.h>
 
@@ -20,6 +21,18 @@
 #define SELECIONAR 12
 #define DELETAR 13
 #define PREENCHER 14
+#define COLORIR 15
+
+//cores
+#define PRETO 0//deve ser o primeiro
+#define CINZA 1
+#define VERMELHO 2
+#define ROXO 3
+#define AZUL 4
+#define AMARELO 5
+#define VERDE 6
+#define MARROM 7
+#define BRANCO 8//deve ser o ultimo
 
 
 ///////////////// ESTRUTURAS
@@ -31,7 +44,9 @@ typedef struct ponto{
 }ponto;
 
 typedef struct figura{
+    bool preenchido;
     float r = 0.0, g = 0.0, b = 0.0;
+    int numCor;
     int id;
     int tipo;
     ponto* pontos;
@@ -138,12 +153,14 @@ void limpaCantos(figura* f){
 int pushFigura(){
     figura* fig = (figura*)malloc(sizeof(figura));
     fig->r = 0.0;fig->g = 0.0;fig->b = 0.0;
+    fig->numCor = PRETO;
     fig->tipo = NENHUM;
     fig->id = numFiguras;
 	fig->numPontos = 0;
 	fig->numCantos = 0;
     fig->pontos = NULL;
     fig->cantos = NULL;
+    fig->preenchido = false;
 	fig->prox = figuras;
     numFiguras++;
     figuras = fig;
@@ -161,7 +178,13 @@ void popFigura(int id){
 	return;
 }
 
+
 ///////////////// FUNÇÕES DE DESENHOS
+
+void inverterPreenchimento(int id){
+    figura* f = procurarId(id);
+    f->preenchido = !f->preenchido;
+}
 
 int figuraPerto(int x, int y){
     figura* figuraPerto = NULL;
@@ -244,35 +267,10 @@ void bresenham (figura* f, int x0,int y0,int x1,int y1){
     }
 }
 
-void redesenhar (int id){
-    figura* f = procurarId(id);
-    if(f->tipo==CIRCULO) return;
-    popPontos(f);
-    ponto* atual = f->cantos;
-    while(atual!=NULL){
-        bresenham(f, atual->x, atual->y, atual->prox->x, atual->prox->y);
-        atual = atual->prox->prox; 
-    }
-    limpaCantos(f);
-}
-
-void reta(int id, int x0,int y0,int x1,int y1){
-    figura* f = procurarId(id);
-    setTipoFigura(id, RETA);
-    bresenham(f, x0, y0, x1, y1);
-}
-
-void quadrado(int id, int x0,int y0,int x1,int y1){
-    figura* f = procurarId(id);
-    setTipoFigura(id, QUADRILATERO);
-    bresenham(f, x0, y0, x1, y0);
-    bresenham(f, x1, y0, x1, y1);
-    bresenham(f, x1, y1, x0, y1);
-    bresenham(f, x0, y1, x0, y0);
-}
-
 void circulo(int id, int x,int y, int raio){
     figura* f = procurarId(id);
+    pushCanto(f, raio, 0);
+    pushCanto(f, x, y);
     setTipoFigura(id, CIRCULO);
     int d = 1 - raio;
     int variaE = 4;
@@ -302,6 +300,32 @@ void circulo(int id, int x,int y, int raio){
         }
         xi++;
     }
+}
+
+void redesenhar (int id){
+    figura* f = procurarId(id);
+    popPontos(f);
+    ponto* atual = f->cantos;
+    while(atual!=NULL){
+        (f->tipo==CIRCULO)? circulo(id, atual->x, atual->y, atual->prox->x) : bresenham(f, atual->x, atual->y, atual->prox->x, atual->prox->y);
+        atual = atual->prox->prox; 
+    }
+    limpaCantos(f);
+}
+
+void reta(int id, int x0,int y0,int x1,int y1){
+    figura* f = procurarId(id);
+    setTipoFigura(id, RETA);
+    bresenham(f, x0, y0, x1, y1);
+}
+
+void quadrado(int id, int x0,int y0,int x1,int y1){
+    figura* f = procurarId(id);
+    setTipoFigura(id, QUADRILATERO);
+    bresenham(f, x0, y0, x1, y0);
+    bresenham(f, x1, y0, x1, y1);
+    bresenham(f, x1, y1, x0, y1);
+    bresenham(f, x0, y1, x0, y0);
 }
 
 void transladar(int id, int direcao, int clique, int numPixel){
@@ -343,7 +367,8 @@ void transladar(int id, int direcao, int clique, int numPixel){
 void rotacao(int id, int grau){
     figura* f = procurarId(id);
     ponto* atual;
-    (f->tipo==CIRCULO)?atual = f->pontos:atual = f->cantos;
+    if (f->tipo==CIRCULO) return;
+    atual = f->cantos;
     int xaux, yaux;
     double seno, cosseno, rad = grau * M_PI / 180;
     ponto* pMedioInicial = pontoMedio(id);
@@ -354,7 +379,7 @@ void rotacao(int id, int grau){
         atual->y=(int)(xaux*sin(rad)+yaux*cos(rad));
         atual=atual->prox;
     };
-    if(f->tipo!=CIRCULO)redesenhar(id);
+    redesenhar(id);
     ponto* pMedioFinal = pontoMedio(id);
     xaux = pMedioFinal->x - pMedioInicial->x;
     yaux = pMedioFinal->y - pMedioInicial->y;
@@ -420,8 +445,12 @@ void espelhamento(int id, bool horizontal){
 
 void escala(int id, float fator){
     figura* f = procurarId(id);
-    ponto* atual;
-    (f->tipo==CIRCULO)?atual = f->pontos:atual = f->cantos;
+    ponto* atual = f->cantos;
+    if (f->tipo==CIRCULO){
+        atual->prox->x = (atual->prox->x)*fator;
+        redesenhar(id);
+        return;
+    }
     ponto* pMedioInicial = pontoMedio(id);
     
     while (atual!=NULL){
@@ -429,7 +458,7 @@ void escala(int id, float fator){
         atual->y=(int)(atual->y*fator);
         atual=atual->prox;
     };
-    if(f->tipo!=CIRCULO)redesenhar(id);
+    redesenhar(id);
     ponto* pMedioFinal = pontoMedio(id);
     int xaux, yaux;
     xaux = pMedioFinal->x - pMedioInicial->x;
@@ -443,14 +472,21 @@ void escala(int id, float fator){
 }
 
 
-void preencherFigura(figura *f){
+void preencherFigura(int id){
     //ponto* maxPonto = pontoMaximo(f);
     //ponto* minPonto = pontoMinimo(f);
+    figura* f = procurarId(id);
+    if (f->preenchido){
+        f->preenchido = false;
+        redesenhar(id);
+        return;
+    }
+    inverterPreenchimento(id);
     ponto* aux = f->pontos;
     int contx, conty, cont;
     bool anterior;
-    bool matriz[512][512];
     //usando matriz auxiliar
+    bool matriz[512][512];
     for (contx = 0; contx < 512; contx++){
         for (conty = 0; conty < 512; conty++){
             matriz[contx][conty]=false;
@@ -466,7 +502,6 @@ void preencherFigura(figura *f){
         for (conty = 0; conty < 512; conty++){
             if(matriz[contx][conty] && !anterior) {
                 while(cont!=0){
-                    printf("%d %d\n", contx, conty);
                     pushPonto(f, contx, conty-cont);
                     cont--; 
                 }
@@ -479,17 +514,59 @@ void preencherFigura(figura *f){
 }
 
 /*FLOOD FILL
-//funcao recursiva funciona mas eh muito lenta,
-//principalmente para figuras grandes.
+//Uma opção caso queria pintar uma região
+//a partir do clique ou do ponto médio da figura
 void preencherFigura(figura *f, int x, int y){
-    if(existePonto(f, x ,y)) return;
+    if(matriz[x][y]) return;
     pushPonto(f, x , y);
+    matriz[x][y]=true;
     preencherFigura(f, (x-1), y);
     preencherFigura(f, (x+1), y);
     preencherFigura(f, x, (y-1));
     preencherFigura(f, x, (y+1));
 }
 */
+
+void colorir(int id, int cor){
+    figura* f = procurarId(id);
+    if (cor<PRETO) cor=BRANCO;
+    if (cor>BRANCO) cor=PRETO;
+    f->numCor=cor;
+    switch (cor)
+    {
+    case PRETO:
+        f->r=0.0;f->g=0.0;f->b=0.0;
+        break;
+        
+    case CINZA:
+        f->r=0.5;f->g=0.5;f->b=0.5;
+        break;
+    case VERMELHO:
+        f->r=1.0;f->g=0.0;f->b=0.0;
+        break;
+    case ROXO:
+        f->r=1.0;f->g=0.0;f->b=1.0;
+        break;
+    case AZUL:
+        f->r=0.0;f->g=0.0;f->b=1.0;
+        break;
+    case AMARELO:
+        f->r=0.0;f->g=1.0;f->b=1.0;
+        break;
+    case VERDE:
+        f->r=0.0;f->g=1.0;f->b=0.0;
+        break;
+    case MARROM:
+        f->r=1.0;f->g=1.0;f->b=0.0;
+        break;
+    case BRANCO:
+        f->r=1.0;f->g=1.0;f->b=1.0;
+        break;
+
+    default:
+        break;
+    }
+}
 
 ///////////////// FUNÇÕES DA OPERAÇÃO DO PROGRAMA
 
@@ -519,15 +596,12 @@ void setEstado(int e){
             break;
         
         case PREENCHER:
-            printf("num de pixel : %d\n", procurarId(figura_selecionada)->numPontos);
-            preencherFigura(procurarId(figura_selecionada));
-            printf("num de pixel : %d\n\n", procurarId(figura_selecionada)->numPontos);
+            preencherFigura(figura_selecionada);
             break;
 
         default:
             break;
         }
-        
     }
     glutPostRedisplay();
 }
@@ -622,21 +696,25 @@ void desenho(int x,int y, int tipo_clique){
 
     case CISALHAMENTO:
         if(figura_selecionada==-1) return;
+        if(procurarId(figura_selecionada)->preenchido) inverterPreenchimento(figura_selecionada);
         (tipo_clique==0)?cisalhamento(figura_selecionada, -0.1):cisalhamento(figura_selecionada, 0.1);
         break;
 
     case ESCALA:
         if(figura_selecionada==-1) return;
+        if(procurarId(figura_selecionada)->preenchido) inverterPreenchimento(figura_selecionada);
         (tipo_clique==0)?escala(figura_selecionada, 0.95):escala(figura_selecionada, 1.05);
         break;
 
     case ROTACAO:
         if(figura_selecionada==-1) return;
+        if(procurarId(figura_selecionada)->preenchido) inverterPreenchimento(figura_selecionada);
         (tipo_clique)?rotacao(figura_selecionada, -5):rotacao(figura_selecionada, 5);
         break;
 
     case ESPELHAMENTO:
         if(figura_selecionada==-1) return;
+        if(procurarId(figura_selecionada)->preenchido) inverterPreenchimento(figura_selecionada);
         (tipo_clique)?espelhamento(figura_selecionada, true):espelhamento(figura_selecionada, false);
         break;
 
@@ -650,6 +728,13 @@ void desenho(int x,int y, int tipo_clique){
 
     case PREENCHER:
         //executada no setEstado
+        break;
+
+    case COLORIR:
+        if(figura_selecionada==-1) return;
+        if (tipo_clique) colorir(figura_selecionada, (procurarId(figura_selecionada)->numCor-1));
+        else colorir(figura_selecionada, (procurarId(figura_selecionada)->numCor+1));
+
         break;
 
     default:
@@ -676,7 +761,9 @@ void menu (){
     limparMenu();
 
     int idAtual = pushFigura();
-    int figuraApagar = pushFigura();
+    int figura_apagar = pushFigura();
+    int figura_preencher = pushFigura();
+    int figura_colorir = pushFigura();
 
     quadrado(idAtual, 0,511,511,481);
 
@@ -735,15 +822,26 @@ void menu (){
         reta(idAtual, 325, 487, 325, 507);
 
         //apagar
-        reta(figuraApagar, 389, 507, 411, 487);
-        reta(figuraApagar, 389, 487, 411, 507);
-        procurarId(figuraApagar)->r=1.0;
+        reta(figura_apagar, 389, 507, 411, 487);
+        reta(figura_apagar, 389, 487, 411, 507);
+        colorir(figura_apagar, VERMELHO);
+        
+        //preencher
+        circulo(figura_preencher, 432, 497, 11);
+        if(procurarId(figura_selecionada)->preenchido) preencherFigura(figura_preencher);
 
+        //colorir
+        quadrado(figura_colorir, 453, 507, 475, 485);
+        preencherFigura(figura_colorir);
+        colorir(figura_colorir, procurarId(figura_selecionada)->numCor);
+    
+        //selecionar
+        circulo(idAtual,368,497,11);
+        circulo(idAtual,368,497,5);
     }
-    //selecionar
-    circulo(idAtual,368,497,11);
-    circulo(idAtual,368,497,5);
 
-    setTipoFigura(figuraApagar, MENU);
+    setTipoFigura(figura_apagar, MENU);
+    setTipoFigura(figura_preencher, MENU);
+    setTipoFigura(figura_colorir, MENU);
     setTipoFigura(idAtual, MENU);
 }
